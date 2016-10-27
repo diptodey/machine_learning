@@ -9,36 +9,59 @@
 # Licence:     <your licence>
 #-------------------------------------------------------------------------------
 
-from activationfuns import *
 
 # Basic neuron class , the name is a misnomer TODO
 import numpy as np
 
 class neuron():
     def __init__(self, weightVector = [1,2,3,4], actFuncType = "THRES", sigmoid_slope = 1):
-        print("                 neuron created")
-        ## TODO  How to incorporate sigmoid slope in a nice way
-        ## TODO  Incorporate User Defined Activation Functions
-        self.__actFunc = {"THRES": activation_threshold, "LINEAR": activation_linear, "SIGMOID": activation_sigmoid}[actFuncType]
-        self._weightVector = weightVector
+        self.__actFuncType =  actFuncType
+        self.__weightVector = weightVector
         self.__sigmoid_slope = 1
-        print("Created neuron")
 
 
     def update_weights(self,newWeight):
-        self._weightVector = newWeightVector
+        self.__weightVector = newWeightVector
 
 
     def calc_output(self,inputVector):
-        # input0 is for bias is alaways 1
-        inputVector+=[1]
-        print inputVector ,self._weightVector
-        return self.__actFunc(np.dot( self._weightVector,  np.transpose(inputVector)))
+        v=np.dot( self.__weightVector,  np.transpose(inputVector))
+        if self.__actFuncType == "THRES":
+            return self.activation_threshold(v)
+        elif self.__actFuncType == "LINEAR":
+            return self.activation_linear(v)
+        elif self.__actFuncType == "SIGMOID":
+            return self.activation_sigmoid(v)
+        else:
+            assert 1, (" Undefined activation function type")
 
 
     def get_weights(self):
         return self._weightVector
 
+
+    def activation_threshold(self,v):
+        if v < 0:
+            return 0
+        else:
+            return 1
+
+
+    def activation_linear(self,v):
+        if v >= 0.5:
+            return 1
+        elif v > -0.5:
+            return v
+        else:
+            return -1
+
+
+    def activation_sigmoid(self,v):
+        return 1/(1 + np.exp(-self.__sigmoid_slope*v))
+
+
+    def activation_stochastic(self,v):
+        pass
 
 
 
