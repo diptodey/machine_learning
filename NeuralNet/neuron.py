@@ -12,7 +12,7 @@
 
 # Basic neuron class , the name is a misnomer TODO
 import numpy as np
-
+# neuron nw
 class neuron():
     def __init__(self, weightVector = [1,2,3,4], actFuncType = "THRES", sigmoid_slope = 1):
         self.__actFuncType =  actFuncType
