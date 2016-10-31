@@ -21,9 +21,9 @@ class TestNeuraNet(unittest.TestCase):
         inputTestVector = [-0.7,-0.3,-1,0.6]
         N = neunet( neuralNetSkeleton   = ((1, 7 ), (2, 3), (3, 5)),
                     inputVecRank        = len(inputTestVector),
-                    IniWght  = 1,
+                    InitialWeight             = 1,
                     activationType      = "SIGMOID")
-        self.assertEqual(N.run_iteration(inputTestVector), [-1,-1])
+        self.assertEqual(N.run_iteration(inputTestVector), [0.98082794746162594, 0.98082794746162594, 0.98082794746162594, 0.98082794746162594, 0.98082794746162594])
 
 
 

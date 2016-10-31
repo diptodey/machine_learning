@@ -37,7 +37,7 @@ class neuron():
 
 
     def get_weights(self):
-        return self._weightVector
+        return self.__weightVector
 
 
     def activation_threshold(self,v):
