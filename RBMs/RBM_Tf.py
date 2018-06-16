@@ -7,28 +7,66 @@ import matplotlib.pyplot as plt
 
 
 class DBM():
-    def __init__(self, layers, lrate, epochs, batch_size, train_data, val_data, stop_at, dump_weight_path):
+    def __init__(self, layers, lrate, epochs, batch_size, train_data, val_data,
+                 stop_at, dump_weight_path):
         self.weight_list = []
-        next_train = train_data
-        next_val = val_data
-        for count, dim in enumerate(layers):
-            r1 = RBM(NrV=dim[0], NrH=dim[1], lrate = lrate, savepath = "./RBM" + str(count) + ".chp", stop_at=stop_at[count])
-            r1.run_cd1_minibatch(next_train, next_val, epochs, batch_size)
-            r1.plot_energy("RBM_L" + str(count) + ".png")
-            self.weight_list.append(r1.return_weights())
+        self.train_data = train_data
+        self.val_data = val_data
+        self.stop_at = stop_at
+        self.dump_weight_path = dump_weight_path
+        self.batch_size = batch_size
+        self.layers = layers
+        self.lrate = lrate
+        self.epochs = epochs
+        self.energy_diff = []
+
+    def run(self, cd):
+        next_train = self.train_data
+        next_val = self.val_data
+        self.energy_diff = []
+        self.weight_list = []
+        for count, dim in enumerate(self.layers):
+            r1 = RBM(NrV=dim[0], NrH=dim[1],
+                     lrate=self.lrate,
+                     cd=cd,
+                     savepath="./_tmp/model/RBM" + str(count) + ".chp", stop_at=self.stop_at[count])
+            r1.run_cd1_minibatch(next_train, next_val, self.epochs, self.batch_size)
+            self.energy_diff.append(r1.get_energy_diff())
+            self.weight_list.append(r1.get_weights())
             next_train = r1.run_visible(next_train )
             next_val = r1.run_visible(next_val)
-        pickle.dump(self.weight_list, open(dump_weight_path, "wb"))
-        print(self.weight_list)
+        pickle.dump(self.energy_diff, open(self.dump_weight_path + 'energy_diff_cd' + str(cd), "wb"))
+        pickle.dump(self.weight_list, open(self.dump_weight_path + 'weights_cd' + str(cd), "wb"))
+
+    def get_min_energy_step(self, layer, cd):
+        tmp_energy_gap = pickle.load(open(self.dump_weight_path + 'energy_diff_cd' + str(cd), 'rb'))
+        return np.argmin(tmp_energy_gap[layer]) + 1
+
+    def plot_energy_diff(self, layer, cd1=True, cd5=True, cd10=True):
+        plt.title('Energy Difference Test and Validation')
+        plt.subplot(1, 1, 1)
+        plt.xlabel('Epochs')
+        plt.ylabel('Energy Difference')
+        if cd1:
+            cd1_energy_diff = pickle.load(open(self.dump_weight_path + 'energy_diff_cd1', 'rb'))
+            epochs = range(1, np.shape(cd1_energy_diff[layer])[0] + 1)
+            plt.plot(epochs, cd1_energy_diff[layer], 'b-', label='CD1')
+        if cd5:
+            cd5_energy_diff = pickle.load(open(self.dump_weight_path + 'energy_diff_cd5', 'rb'))
+            epochs = range(1, np.shape(cd5_energy_diff[layer])[0] + 1)
+            plt.plot(epochs, cd5_energy_diff[layer], 'r-', label='CD5')
+        if cd10:
+            cd10_energy_diff = pickle.load(open(self.dump_weight_path + 'energy_diff_cd10', 'rb'))
+            epochs = range(1, np.shape(cd10_energy_diff[layer])[0] + 1)
+            plt.plot(epochs, cd10_energy_diff[layer], 'y-', label='CD10')
+        plt.legend()
+        plt.grid()
+        plt.savefig(self.dump_weight_path + "EnergyVsCd_layer_" + str(layer) + ".png")
+        plt.show()
 
 
 class RBM():
-    def __init__(self, NrV, NrH, lrate=0.01, savepath = "./RBM1.chp", stop_at = 100):
-        
-         #Initialize the weight matrix
-         #NrV: Number of Visible Units
-         #NrH: Number of Hidden Units
-         
+    def __init__(self, NrV, NrH, lrate=0.01, savepath = "./_tmp/model/RBM1.chp", stop_at = 100, cd = 1):
         self.NrV = NrV
         self.NrH = NrH
         self.savepath = savepath
@@ -47,19 +85,24 @@ class RBM():
         self.o_w = np.random.normal(0.0, 0.01, [self.NrV, self.NrH])
         self.o_vb = np.zeros([self.NrV], np.float32)
         self.o_hb = np.zeros([self.NrH], np.float32)
+        self.test_energy = []
+        self.val_energy = []
 
-        self.pos_act = tf.matmul(self.data, self.W) + self.H_W_bias
-        pos_hidden_prob = tf.nn.sigmoid(self.pos_act)
-        pos_associations = tf.matmul(tf.transpose(self.data), pos_hidden_prob)
-        self.pos_hidden_state = tf.nn.relu(tf.sign(pos_hidden_prob - tf.random_uniform(tf.shape(pos_hidden_prob))))
+        self.pos_hidden_prob = tf.nn.sigmoid(tf.matmul(self.data, self.W) + self.H_W_bias)
+        self.pos_hidden_state = tf.nn.relu(tf.sign(self.pos_hidden_prob -
+                                                   tf.random_uniform(tf.shape(self.pos_hidden_prob))))
 
-        neg_visible_prob = tf.nn.sigmoid(tf.matmul(self.pos_hidden_state, tf.transpose(self.W)) + self.V_W_bias)
-        neg_hidden_prob = tf.nn.sigmoid(tf.matmul(neg_visible_prob, self.W) + self.H_W_bias)
+        recons_hidden_state = self.pos_hidden_state
+        for i in range(0, cd):
+            neg_visible_prob = tf.nn.sigmoid(tf.matmul(recons_hidden_state, tf.transpose(self.W)) + self.V_W_bias)
+            neg_hidden_prob = tf.nn.sigmoid(tf.matmul(neg_visible_prob, self.W) + self.H_W_bias)
+
+        pos_associations = tf.matmul(tf.transpose(self.data), self.pos_hidden_prob)
         neg_associations = tf.matmul(tf.transpose(neg_visible_prob), neg_hidden_prob)
 
         self.update_w = self.W + (lrate * ((pos_associations - neg_associations) / tf.to_float(tf.shape(self.data)[0])))
         self.update_vb = self.V_W_bias + (lrate * tf.reduce_mean(self.data - neg_visible_prob, 0))
-        self.update_hb = self.H_W_bias + (lrate * tf.reduce_mean(pos_hidden_prob - neg_hidden_prob, 0))
+        self.update_hb = self.H_W_bias + (lrate * tf.reduce_mean(self.pos_hidden_prob - neg_hidden_prob, 0))
         self.error = tf.reduce_sum(tf.square(self.data - neg_visible_prob))/tf.to_float(tf.shape(self.data)[1])
 
         v_bias = tf.transpose(tf.reshape(self.V_W_bias, [1, self.NrV]))
@@ -97,9 +140,12 @@ class RBM():
         saver = tf.train.Saver({'W': self.weights['W'],
                                 'V_W_bias': self.weights['V_W_bias'],
                                 'H_W_bias': self.weights['H_W_bias']})
-        save_path = saver.save(self.sess, path, write_meta_graph=False)
+        saver.save(self.sess, path, write_meta_graph=False)
 
-    def return_weights(self):
+    def load_weights(self, w):
+        self.o_w = w
+
+    def get_weights(self):
         return {'W': self.o_w, 'V_W_bias': self.o_vb, 'H_W_bias': self.o_hb}
 
     def run_cd1(self, train_data, epochs):
@@ -139,11 +185,14 @@ class RBM():
         plt.savefig(filename)
         plt.show()
 
+    def get_energy_diff(self):
+        return np.subtract(self.val_energy, self.test_energy)
+
     def run_visible(self, data):
         self.restore_weights(self.savepath)
         feed_dict = {self.data: data, self.W: self.o_w, self.V_W_bias: self.o_vb, self.H_W_bias: self.o_hb}
-        hidden_data = self.sess.run(self.pos_hidden_state,  feed_dict=feed_dict)
-        return hidden_data
+        hidden_state = self.sess.run(self.pos_hidden_state,  feed_dict=feed_dict)
+        return hidden_state
 
     def get_energy(self, data):
         feed_dict = {self.data: data, self.W: self.o_w, self.V_W_bias: self.o_vb, self.H_W_bias: self.o_hb}
@@ -157,35 +206,5 @@ class RBM():
 
     def run_hidden(self, data):
         pass
-
-
-"""
-data = pickle.load(open("imdb.p", "rb"))
-
-
-r1 = RBM(NrV = 10000, NrH = 16, savepath ="./RBM1.chp", stop_at= 25)
-#training_data = np.array([[1,1,1,0,0,0],[1,0,1,0,0,0],[1,1,1,0,0,0],[0,0,1,1,1,0], [0,0,1,1,0,0],[0,0,1,1,1,0]])
-
-r1.run_cd1_minibatch( np.array(data['x_p_train']),
-                      np.array(data['x_val']),
-                      epochs = 1, batchsz= 100 )
-
-#r1.run_cd1_minibatch( training_data,training_data, 100, 6)
-r1.plot_energy("RBM_L1_16.png")
-weight_dict_4 = {'inp_hid': [], 'hid_oup': [] }
-train_hd = r1.run_visible(np.array(data['x_p_train'] ))
-val_hd = r1.run_visible(np.array(data['x_val'] ))
-
-weight_dict_4["inp_hid"] = r1.return_weights()
-
-r2 = RBM(NrV = 16, NrH = 16, savepath ="./RBM2.chp", stop_at=25)
-r2.run_cd1_minibatch( train_hd,
-                      val_hd,
-                      epochs = 1, batchsz= 100 )
-r2.plot_energy("RBM_L2_16.png")
-weight_dict_4["hid_oup"] = r2.return_weights()
-
-pickle.dump(weight_dict_4, open("weights_4.p", "wb"))
-"""
 
 

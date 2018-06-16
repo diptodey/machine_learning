@@ -24,18 +24,22 @@ def vectorize_sequences(sequences, dimension=10000):
     return results
 
 imdb_dict = {}
-x_train = vectorize_sequences(train_data)
-x_test = vectorize_sequences(test_data)
+imdb_dict['x_train'] = vectorize_sequences(train_data)
+imdb_dict['x_test'] = vectorize_sequences(test_data)
 
-imdb_dict['x_train'] = np.asarray(x_train).astype('float32')
-imdb_dict['x_test'] = np.asarray(x_test).astype('float32')
 imdb_dict['y_train'] = np.asarray(train_labels).astype('float32')
 imdb_dict['y_test'] = np.asarray(test_labels).astype('float32')
 
 imdb_dict['x_val'] = imdb_dict['x_train'][:10000]
 imdb_dict['y_val'] = imdb_dict['y_train'][:10000]
-imdb_dict['x_p_train'] = imdb_dict['x_train'][10000:]
-imdb_dict['y_p_train'] = imdb_dict['y_train'][10000:]
+imdb_dict['x_p_train_1'] = imdb_dict['x_train'][10000:20000]
+imdb_dict['y_p_train_1'] = imdb_dict['y_train'][10000:20000]
+imdb_dict['x_p_train_2'] = imdb_dict['x_train'][20000:25000]
+imdb_dict['y_p_train_2'] = imdb_dict['y_train'][20000:25000]
+imdb_dict['x_p_train'] = imdb_dict['x_train'][10000:25000]
+imdb_dict['y_p_train'] = imdb_dict['y_train'][10000:25000]
+
+
 pickle.dump( imdb_dict, open( "imdb.p", "wb" ) )
 
 
